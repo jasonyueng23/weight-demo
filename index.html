@@ -2,103 +2,129 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>减肥互助社群（云端多人Demo）</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body { font-family: system-ui; padding:24px; background:#f7f8fa; margin:0; }
-    .card { background:#fff; border-radius:12px; padding:24px; max-width:780px; box-shadow:0 2px 12px #00000012; margin-bottom:20px; }
-    input { width:100%; box-sizing:border-box; padding:12px; font-size:16px; border:1px solid #ddd; border-radius:8px; margin:8px 0 12px; }
-    textarea { width:100%; box-sizing:border-box; padding:12px; font-size:16px; border:1px solid #ddd; border-radius:8px; margin:8px 0 12px; min-height:80px; }
-    button { background:#2b65ec; color:white; border:none; border-radius:8px; padding:10px 22px; font-size:16px; cursor:pointer; margin:4px; }
-    button.secondary { background:#888; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding:16px; background:#f7f8fa; margin:0; color:#111; }
+    h1 { font-size:22px; margin:8px 0 16px; }
+    h2 { font-size:18px; margin:0 0 12px; }
+    h3 { font-size:16px; margin:16px 0 8px; }
+    .card { background:#fff; border-radius:12px; padding:20px; max-width:860px; box-shadow:0 2px 12px #00000012; margin:0 auto 16px; }
+    input, textarea, select {
+      width:100%; box-sizing:border-box; padding:12px; font-size:16px;
+      border:1px solid #ddd; border-radius:8px; margin:6px 0 12px;
+    }
+    textarea { min-height:80px; resize:vertical; }
+    button { background:#2b65ec; color:white; border:none; border-radius:8px; padding:10px 16px; font-size:15px; cursor:pointer; margin:4px 4px 4px 0; }
+    button:hover { filter:brightness(0.95); }
+    button.secondary { background:#6b7280; }
     button.danger { background:#dc2626; }
     button.success { background:#059669; }
+    button.ghost { background:#eef2ff; color:#3730a3; }
     .hide { display:none !important; }
-    .order-item { border:1px solid #e5e7eb; border-radius:10px; padding:16px; margin:12px 0; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .order-item { border:1px solid #e5e7eb; border-radius:10px; padding:14px; margin:12px 0; }
     .status-open {color:#059669;}
     .status-taken {color:#2563eb;}
     .status-completed {color:#7c3aed;}
     .status-cancelled {color:#dc2626;}
-    .log-item {
-      background:#f7f8fa;
-      padding:8px 12px;
-      border-radius:6px;
-      margin:4px 0;
-      font-size:14px;
+    .log-item, .note-item {
+      background:#f7f8fa; padding:8px 12px; border-radius:6px; margin:4px 0; font-size:14px;
     }
-
-    /* 安全协议弹窗样式 */
+    .note-objection { background:#fef2f2; }
+    .note-plan { background:#eff6ff; }
+    .muted { color:#666; font-size:13px; }
+    .pill { display:inline-block; background:#eef2ff; color:#3730a3; border-radius:999px; padding:2px 8px; font-size:12px; }
+    .field-err { color:#dc2626; font-size:13px; margin-top:-8px; margin-bottom:8px; }
+    /* toast */
+    #toastWrap { position:fixed; top:16px; right:16px; z-index:10000; display:flex; flex-direction:column; gap:8px; }
+    .toast { background:#111827; color:#fff; padding:10px 14px; border-radius:8px; font-size:14px; max-width:320px; box-shadow:0 4px 16px #0003; }
+    .toast.ok { background:#065f46; }
+    .toast.err { background:#991b1b; }
+    /* modal */
     .modal-overlay {
-      position: fixed;
-      inset:0;
-      background:rgba(0,0,0,0.6);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      z-index:9999;
+      position:fixed; inset:0; background:rgba(0,0,0,0.6);
+      display:flex; align-items:center; justify-content:center; z-index:9999; padding:16px;
     }
-    .modal-box {
-      background:white;
-      width:90%;
-      max-width:520px;
-      border-radius:12px;
-      padding:24px;
-    }
-    .modal-text {
-      max-height:260px;
-      overflow-y:auto;
-      padding:8px;
-      border:1px solid #eee;
-      margin:16px 0;
+    .modal-box { background:white; width:90%; max-width:520px; border-radius:12px; padding:24px; max-height:90vh; overflow:auto; }
+    .modal-text { max-height:260px; overflow-y:auto; padding:8px; border:1px solid #eee; margin:16px 0; }
+    @media (max-width:640px) {
+      body { padding:10px; }
+      .card { padding:14px; }
+      button { width:100%; margin:4px 0; }
+      .row button { width:auto; flex:1; }
     }
   </style>
 </head>
 <body>
+<div id="toastWrap"></div>
 <h1>🏃减肥互助社群（云端多人Demo）</h1>
 
 <div id="loginPage" class="card">
   <h2>进入社群</h2>
-  <input id="username" placeholder="输入你的昵称">
-  <br>
+  <input id="username" placeholder="输入你的昵称" maxlength="24" autocomplete="nickname">
   <button onclick="handleLogin()">登录社群</button>
-  <p style="font-size:13px;color:#666">管理员需要在supabase后台把app_users表is_admin设置为true</p>
+  <p class="muted">管理员需要在 supabase 后台把 app_users 表 is_admin 设置为 true</p>
 </div>
 
 <div id="mainPage" class="card hide">
-  <h2>欢迎，<span id="showName"></span></h2>
-  <button onclick="logout()">退出登录</button>
+  <h2>欢迎，<span id="showName"></span> <span id="adminBadge" class="pill hide">管理员</span></h2>
+  <div class="row">
+    <button class="secondary" onclick="logout()">退出登录</button>
+    <button class="ghost hide" id="btnAdmin" onclick="fetchAdminOrders()">管理员：全部订单</button>
+  </div>
   <hr>
 
   <h3>📝发布减肥目标订单</h3>
-  <input id="orderTitle" placeholder="订单标题：例如：2个月减重8kg">
-  <textarea id="orderDesc" placeholder="目标描述，你的计划、注意事项..."></textarea>
-  <input id="curWeight" placeholder="当前体重" type="number" step="0.1">
-  <input id="tarWeight" placeholder="目标体重" type="number" step="0.1">
+  <input id="orderTitle" placeholder="订单标题：例如：2个月减重8kg" maxlength="80">
+  <textarea id="orderDesc" placeholder="目标描述，你的计划、注意事项..." maxlength="2000"></textarea>
+  <input id="curWeight" placeholder="当前体重(kg)" type="number" step="0.1" min="20" max="300">
+  <input id="tarWeight" placeholder="目标体重(kg)" type="number" step="0.1" min="20" max="300">
   <input id="deadline" type="date">
   <button onclick="createOrder()">创建目标订单</button>
 
   <hr>
-  <div style="display:flex;gap:8px;">
+  <div class="row">
     <button onclick="fetchAllOpenOrders()">浏览全部开放订单</button>
     <button onclick="fetchMyOrders()">我的订单</button>
+  </div>
+  <div class="row">
+    <select id="statusFilter" onchange="applyStatusFilter()">
+      <option value="">筛选：全部状态</option>
+      <option value="open">open 开放</option>
+      <option value="taken">taken 进行中</option>
+      <option value="completed">completed 已完成</option>
+      <option value="cancelled">cancelled 已取消</option>
+    </select>
   </div>
 
   <div id="orderListWrap"></div>
 </div>
 
-<!-- 安全协议弹窗 默认隐藏 -->
 <div id="safetyModal" class="modal-overlay hide">
   <div class="modal-box">
     <h3>⚠️减肥互助安全协议</h3>
     <div class="modal-text">
-<p>1. 参与本平台减肥互助，禁止使用极端节食、催吐、过量运动等伤害身体的减重手段。</p>
-<p>2. 协助人给出的减肥建议仅供参考，身体不适请立刻停止并咨询医生。</p>
-<p>3. 如果双方对方案产生分歧，可以申请平台仲裁。</p>
-<p>4. 用户需要对自己的身体健康负全部责任，平台不承担健康损伤相关责任。</p>
-<p>5. 创建订单即代表你认可以上全部条款。</p>
+      <p>1. 参与本平台减肥互助，禁止使用极端节食、催吐、过量运动等伤害身体的减重手段。</p>
+      <p>2. 协助人给出的减肥建议仅供参考，身体不适请立刻停止并咨询医生。</p>
+      <p>3. 如果双方对方案产生分歧，可以申请平台仲裁（内测阶段由管理员查看证据后口头协调）。</p>
+      <p>4. 用户需要对自己的身体健康负全部责任，平台不承担健康损伤相关责任。</p>
+      <p>5. 创建订单即代表你认可以上全部条款。</p>
     </div>
     <button id="btnAgree">我已阅读并同意协议</button>
     <button class="secondary" id="btnDisagree">拒绝（退出登录）</button>
+  </div>
+</div>
+
+<div id="textModal" class="modal-overlay hide">
+  <div class="modal-box">
+    <h3 id="textModalTitle">输入</h3>
+    <textarea id="textModalInput" placeholder="请输入内容"></textarea>
+    <div class="row">
+      <button id="textModalOk">提交</button>
+      <button class="secondary" onclick="closeTextModal()">取消</button>
+    </div>
   </div>
 </div>
 
@@ -107,26 +133,57 @@ const SUPABASE_URL = "https://dhczdfkoctgoeyiufmqb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_peh0tyV_qeXH5cjaRIx7-Q_W7aeKhm5";
 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
+let lastOrderList = [];
+let lastHeading = "";
 const DEFAULT_SAFETY_AGREEMENT = "双方承诺不使用极端节食、伤害身体的减肥方案；出现分歧可申请平台仲裁。";
+const DANGER_WORDS = ["断碳","零碳","极低热量","泻药","利尿","催吐","禁食","绝食","水煮菜减肥","苹果减肥"];
 
-// =========安全弹窗逻辑=========
 const safetyModal = document.getElementById("safetyModal");
 document.getElementById("btnAgree").addEventListener("click", function(){
   safetyModal.classList.add("hide");
   localStorage.setItem("userAgreeSafety","true");
 });
 document.getElementById("btnDisagree").addEventListener("click", function(){
-  alert("不同意协议将退出登录");
+  toast("不同意协议将退出登录","err");
   logout();
 });
-function showSafetyModal(){
-  safetyModal.classList.remove("hide");
+function showSafetyModal(){ safetyModal.classList.remove("hide"); }
+
+function toast(msg, type){
+  const wrap = document.getElementById("toastWrap");
+  const el = document.createElement("div");
+  el.className = "toast " + (type||"");
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.remove(); }, 3200);
 }
 
-// =========登录逻辑=========
+let textModalResolver = null;
+function openTextModal(title, placeholder, preset){
+  document.getElementById("textModalTitle").textContent = title;
+  const input = document.getElementById("textModalInput");
+  input.placeholder = placeholder || "";
+  input.value = preset || "";
+  document.getElementById("textModal").classList.remove("hide");
+  input.focus();
+  return new Promise((resolve)=>{ textModalResolver = resolve; });
+}
+function closeTextModal(val){
+  document.getElementById("textModal").classList.add("hide");
+  if(textModalResolver){
+    const r = textModalResolver;
+    textModalResolver = null;
+    r(val === undefined ? null : val);
+  }
+}
+document.getElementById("textModalOk").addEventListener("click", function(){
+  closeTextModal(document.getElementById("textModalInput").value);
+});
+
 async function handleLogin(){
   const usernameInput = document.getElementById("username").value.trim();
-  if(!usernameInput){ alert("请输入昵称"); return; }
+  if(!usernameInput){ toast("请输入昵称","err"); return; }
+  if(usernameInput.length > 24){ toast("昵称过长","err"); return; }
   try{
     const {data:userList, error:selErr} = await client
       .from("app_users")
@@ -150,7 +207,7 @@ async function handleLogin(){
     renderMain();
   }catch(e){
     console.error(e);
-    alert("登录失败："+e.message);
+    toast("登录失败："+(e.message||e),"err");
   }
 }
 
@@ -158,6 +215,9 @@ function renderMain(){
   document.getElementById("loginPage").classList.add("hide");
   document.getElementById("mainPage").classList.remove("hide");
   document.getElementById("showName").innerText = currentUser.username;
+  const isAdmin = !!currentUser.is_admin;
+  document.getElementById("adminBadge").classList.toggle("hide", !isAdmin);
+  document.getElementById("btnAdmin").classList.toggle("hide", !isAdmin);
   if(localStorage.getItem("userAgreeSafety") !== "true"){
     showSafetyModal();
   }
@@ -169,7 +229,18 @@ function logout(){
   location.reload();
 }
 
-// =========订单操作：接单、取消、完成=========
+function validateOrderForm(title, curW, tarW, deadline){
+  if(!title) return "请填写标题";
+  if(!Number.isFinite(curW) || curW < 20 || curW > 300) return "当前体重需在 20–300kg";
+  if(!Number.isFinite(tarW) || tarW < 20 || tarW > 300) return "目标体重需在 20–300kg";
+  if(tarW >= curW) return "目标体重应低于当前体重";
+  if(!deadline) return "请选择截止日期";
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(deadline + "T00:00:00");
+  if(d < today) return "截止日期不能早于今天";
+  return "";
+}
+
 async function createOrder(){
   if(localStorage.getItem("userAgreeSafety") !== "true"){
     showSafetyModal();
@@ -180,10 +251,8 @@ async function createOrder(){
   const curW = Number(document.getElementById("curWeight").value);
   const tarW = Number(document.getElementById("tarWeight").value);
   const deadline = document.getElementById("deadline").value;
-  if(!title || !curW || !tarW || !deadline){
-    alert("请填全标题、体重、截止日期");
-    return;
-  }
+  const err = validateOrderForm(title, curW, tarW, deadline);
+  if(err){ toast(err,"err"); return; }
   const orderId = "o_"+Date.now();
   const payload = {
     order_id: orderId,
@@ -201,8 +270,8 @@ async function createOrder(){
     status:"open"
   };
   const {error} = await client.from("orders").insert([payload]);
-  if(error){ alert("创建失败："+error.message); return; }
-  alert("订单创建成功！");
+  if(error){ toast("创建失败："+error.message,"err"); return; }
+  toast("订单创建成功","ok");
   document.getElementById("orderTitle").value="";
   document.getElementById("orderDesc").value="";
   document.getElementById("curWeight").value="";
@@ -211,48 +280,68 @@ async function createOrder(){
   fetchAllOpenOrders();
 }
 
-async function takeOrder(orderObj){
-  if(orderObj.status !== "open"){ alert("该订单不可接单"); return; }
-  if(orderObj.creator_id === currentUser.id){ alert("不能接自己发布的订单"); return; }
+async function takeOrder(orderId){
+  const {data:latest, error:qErr} = await client.from("orders").select("*").eq("order_id", orderId).single();
+  if(qErr || !latest){ toast("订单不存在","err"); return; }
+  if(latest.status !== "open"){ toast("该订单不可接单","err"); return; }
+  if(latest.creator_id === currentUser.id){ toast("不能接自己发布的订单","err"); return; }
   const {error}=await client.from("orders")
     .update({
       status:"taken",
       helper_id:currentUser.id,
       helper_name:currentUser.username
     })
-    .eq("order_id", orderObj.order_id);
-  if(error){alert("接单失败："+error.message);return;}
-  alert("✅接单成功！");
+    .eq("order_id", orderId)
+    .eq("status","open");
+  if(error){toast("接单失败："+error.message,"err");return;}
+  toast("接单成功","ok");
   fetchMyOrders();
 }
 
-async function cancelOrder(orderObj){
+async function cancelOrder(orderId){
   if(!confirm("确定要取消该订单吗？")) return;
+  const {data:o} = await client.from("orders").select("*").eq("order_id", orderId).single();
+  if(!o){ toast("订单不存在","err"); return; }
+  if(o.creator_id !== currentUser.id && !currentUser.is_admin){
+    toast("只有发布人或管理员可取消","err"); return;
+  }
+  if(o.status !== "open" && o.status !== "taken"){
+    toast("当前状态不可取消","err"); return;
+  }
   const {error}=await client.from("orders")
     .update({status:"cancelled"})
-    .eq("order_id", orderObj.order_id);
-  if(error){alert("取消失败："+error.message);return;}
-  alert("订单已取消");
+    .eq("order_id", orderId);
+  if(error){toast("取消失败："+error.message,"err");return;}
+  toast("订单已取消","ok");
   fetchMyOrders();
 }
 
-async function completeOrder(orderObj){
-  if(!confirm("确认标记该订单为已完成？")) return;
-  const {error}=await client.from("orders")
-    .update({status:"completed"})
-    .eq("order_id", orderObj.order_id);
-  if(error){alert("完成失败："+error.message);return;}
-  alert("🎉订单标记完成");
+async function completeOrder(orderId){
+  if(!confirm("确认标记该订单为已完成？将进入确认窗口（内测不涉及资金）。")) return;
+  const {data:o} = await client.from("orders").select("*").eq("order_id", orderId).single();
+  if(!o){ toast("订单不存在","err"); return; }
+  if(o.creator_id !== currentUser.id && o.helper_id !== currentUser.id && !currentUser.is_admin){
+    toast("无权标记完成","err"); return;
+  }
+  if(o.status !== "taken"){ toast("仅进行中的订单可标记完成","err"); return; }
+  const patch = { status:"completed" };
+  // completed_at 为追加字段，若库中尚无该列会失败，再降级重试
+  const try1 = await client.from("orders").update({ status:"completed", completed_at: new Date().toISOString() }).eq("order_id", orderId);
+  if(try1.error){
+    const {error}=await client.from("orders").update(patch).eq("order_id", orderId);
+    if(error){toast("完成失败："+error.message,"err");return;}
+  }
+  toast("订单已标记完成","ok");
   fetchMyOrders();
 }
 
-// =========体重打卡新增功能========
 async function addWeightLog(orderId){
-  const logWeight = prompt("输入本次记录体重：");
-  if(!logWeight) return;
-  const numW = parseFloat(logWeight);
-  if(isNaN(numW)){ alert("体重数字格式错误"); return; }
-  const note = prompt("备注（可选）：") || "";
+  const raw = await openTextModal("记录体重打卡", "第一行填体重(kg)，第二行可选备注");
+  if(raw === null) return;
+  const lines = String(raw).split("\n");
+  const numW = parseFloat(lines[0]);
+  const note = lines.slice(1).join("\n").trim();
+  if(isNaN(numW) || numW < 20 || numW > 300){ toast("体重需在 20–300kg","err"); return; }
   const logId = "wl_"+Date.now();
   const payload = {
     id: logId,
@@ -262,7 +351,8 @@ async function addWeightLog(orderId){
     log_note: note
   };
   const {error}=await client.from("weight_logs").insert([payload]);
-  if(error){ alert("打卡保存失败："+error.message); return; }
+  if(error){ toast("打卡保存失败："+error.message,"err"); return; }
+  toast("打卡已保存","ok");
   fetchMyOrders();
 }
 
@@ -272,84 +362,272 @@ async function getWeightLogs(orderId){
     .eq("order_id",orderId)
     .order("log_date",{ascending:false});
   if(error) return [];
-  return data;
+  return data || [];
+}
+
+async function addOrderNote(orderId, kind, content){
+  const payload = {
+    id: "n_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),
+    order_id: orderId,
+    user_id: currentUser.id,
+    username: currentUser.username,
+    kind: kind,
+    content: content
+  };
+  const {error}=await client.from("order_notes").insert([payload]);
+  return error;
+}
+
+async function getOrderNotes(orderId){
+  const {data,error}=await client.from("order_notes")
+    .select("*")
+    .eq("order_id",orderId)
+    .order("created_at",{ascending:true});
+  if(error) return [];
+  return data || [];
+}
+
+function scanDangerWords(text){
+  const hits = DANGER_WORDS.filter(w => text.includes(w));
+  return hits;
+}
+
+async function submitPlan(orderId){
+  const raw = await openTextModal("提交 / 更新减脂方案", "写明饮食结构、运动安排、注意事项（禁止极端伤身方案）");
+  if(raw === null) return;
+  const content = String(raw).trim();
+  if(!content){ toast("方案不能为空","err"); return; }
+  const hits = scanDangerWords(content);
+  if(hits.length){
+    if(!confirm("检测到可能危险关键词："+hits.join("、")+"\n仍要提交？管理员可据此判定方案违规。")) return;
+  }
+  const err = await addOrderNote(orderId, "plan", content);
+  if(err){ toast("方案保存失败："+err.message+"（请先在 Supabase 执行新增 order_notes 表 SQL）","err"); return; }
+  const patch = await client.from("orders").update({ plan_text: content, plan_at: new Date().toISOString() }).eq("order_id", orderId);
+  if(patch.error){
+    // 追加字段尚未执行时忽略，方案仍在 order_notes
+    console.warn(patch.error);
+  }
+  toast("方案已存档","ok");
+  fetchMyOrders();
+}
+
+async function submitObjection(orderId){
+  const raw = await openTextModal("提交方案异议", "请书面说明异议点（建议在收到方案 48 小时内提交）");
+  if(raw === null) return;
+  const content = String(raw).trim();
+  if(!content){ toast("异议不能为空","err"); return; }
+  const err = await addOrderNote(orderId, "objection", content);
+  if(err){ toast("异议保存失败："+err.message,"err"); return; }
+  toast("异议已存档","ok");
+  fetchMyOrders();
+}
+
+async function submitComment(orderId){
+  const raw = await openTextModal("订单留言", "给对方的监督留言 / 沟通记录");
+  if(raw === null) return;
+  const content = String(raw).trim();
+  if(!content){ toast("留言不能为空","err"); return; }
+  const err = await addOrderNote(orderId, "comment", content);
+  if(err){ toast("留言失败："+err.message,"err"); return; }
+  toast("留言已发布","ok");
+  fetchMyOrders();
+}
+
+async function submitReview(orderId){
+  const raw = await openTextModal("评价协助人", "第一行填 1-5 分，第二行写评语");
+  if(raw === null) return;
+  const lines = String(raw).split("\n");
+  const score = parseInt(lines[0],10);
+  const text = lines.slice(1).join("\n").trim();
+  if(!(score>=1 && score<=5)){ toast("评分必须是 1–5 的整数","err"); return; }
+  const content = "评分:"+score+"/5" + (text?("\n"+text):"");
+  const err = await addOrderNote(orderId, "review", content);
+  if(err){ toast("评价失败："+err.message,"err"); return; }
+  const patch = await client.from("orders").update({
+    rating: score,
+    review_text: text,
+    review_at: new Date().toISOString()
+  }).eq("order_id", orderId);
+  if(patch.error) console.warn(patch.error);
+  toast("评价已提交","ok");
+  fetchMyOrders();
 }
 
 async function fetchAllOpenOrders(){
   const {data,error}=await client.from("orders").select("*").eq("status","open").order("create_at",{ascending:false});
-  if(error){alert(error.message);return;}
-  renderOrderList(data,"全部开放订单");
+  if(error){toast(error.message,"err");return;}
+  renderOrderList(data||[],"全部开放订单");
 }
 
 async function fetchMyOrders(){
   const {data,error}=await client.from("orders").select("*")
     .or(`creator_id.eq.${currentUser.id},helper_id.eq.${currentUser.id}`)
     .order("create_at",{ascending:false});
-  if(error){alert(error.message);return;}
-  renderOrderList(data,"我的订单");
+  if(error){toast(error.message,"err");return;}
+  renderOrderList(data||[],"我的订单");
+}
+
+async function fetchAdminOrders(){
+  if(!currentUser.is_admin){ toast("无管理员权限","err"); return; }
+  const {data,error}=await client.from("orders").select("*").order("create_at",{ascending:false});
+  if(error){toast(error.message,"err");return;}
+  renderOrderList(data||[],"管理员 · 全部订单");
+}
+
+function applyStatusFilter(){
+  const v = document.getElementById("statusFilter").value;
+  const list = v ? lastOrderList.filter(o=>o.status===v) : lastOrderList;
+  paintOrderList(list, lastHeading + (v?(" · "+v):""));
 }
 
 async function renderOrderList(list,headingText){
-  const wrap = document.getElementById("orderListWrap");
-  let html = `<h4>${headingText} (${list.length})</h4>`;
-  for(const o of list){
-    let statusClass = "";
-    let statusText = o.status;
-    if(o.status==="open") statusClass="status-open";
-    if(o.status==="taken") statusClass="status-taken";
-    if(o.status==="completed") statusClass="status-completed";
-    if(o.status==="cancelled") statusClass="status-cancelled";
+  lastOrderList = list || [];
+  lastHeading = headingText;
+  const v = document.getElementById("statusFilter").value;
+  const filtered = v ? lastOrderList.filter(o=>o.status===v) : lastOrderList;
+  await paintOrderList(filtered, headingText + (v?(" · "+v):""));
+}
 
-    html += `<div class="order-item">
-      <div><strong>${o.title}</strong> <span class="${statusClass}">[${statusText}]</span></div>
-      <div>发布人：${o.creator_name}</div>
-      <div>体重：${o.cur_w} → ${o.tar_w}</div>
-      <div>截止：${o.deadline}</div>
-      ${o.description ? `<div>描述：${o.description}</div>` : ""}
-      ${o.helper_name ? `<div>协助人：${o.helper_name}</div>`:""}
+function esc(s){
+  return String(s==null?"":s)
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;");
+}
+
+async function paintOrderList(list,headingText){
+  const wrap = document.getElementById("orderListWrap");
+  let html = `<h4>${esc(headingText)} (${list.length})</h4>`;
+  if(!list.length){
+    html += `<p class="muted">暂无订单</p>`;
+    wrap.innerHTML = html;
+    return;
+  }
+
+  const details = await Promise.all(list.map(async (o)=>{
+    const [logs, notes] = await Promise.all([getWeightLogs(o.order_id), getOrderNotes(o.order_id)]);
+    return {o, logs, notes};
+  }));
+
+  for(const {o, logs, notes} of details){
+    let statusClass = "status-"+o.status;
+    const isCreator = o.creator_id === currentUser.id;
+    const isHelper = o.helper_id === currentUser.id;
+    const isAdmin = !!currentUser.is_admin;
+    const plans = notes.filter(n=>n.kind==="plan");
+    const objections = notes.filter(n=>n.kind==="objection");
+    const comments = notes.filter(n=>n.kind==="comment");
+    const reviews = notes.filter(n=>n.kind==="review");
+    const latestPlan = plans.length ? plans[plans.length-1] : null;
+    let planAgeH = null;
+    if(latestPlan && latestPlan.created_at){
+      planAgeH = (Date.now() - new Date(latestPlan.created_at).getTime())/3600000;
+    }
+
+    html += `<div class="order-item" data-oid="${esc(o.order_id)}">
+      <div><strong>${esc(o.title)}</strong> <span class="${statusClass}">[${esc(o.status)}]</span></div>
+      <div>发布人：${esc(o.creator_name)}</div>
+      <div>体重：${esc(o.cur_w)} → ${esc(o.tar_w)} kg</div>
+      <div>截止：${esc(o.deadline)}</div>
+      ${o.description ? `<div>描述：${esc(o.description)}</div>` : ""}
+      ${o.helper_name ? `<div>协助人：${esc(o.helper_name)}</div>`:""}
+      <div class="muted">协议：${esc(o.safety_agreement||DEFAULT_SAFETY_AGREEMENT)}</div>
       <div class="btn-group">`;
 
-      // 接单按钮：开放订单，不是自己发的
-      if(o.status==="open" && o.creator_id!==currentUser.id){
-        html += `<button onclick='takeOrder(${JSON.stringify(o).replaceAll("'","\\'")})'>接单</button>`;
+    if(o.status==="open" && !isCreator){
+      html += `<button data-act="take">接单</button>`;
+    }
+    if(isCreator || isAdmin){
+      if(o.status === "open" || o.status === "taken"){
+        html += `<button class="danger" data-act="cancel">取消订单</button>`;
       }
-      // 发布人操作
-      if(o.creator_id === currentUser.id){
-        if(o.status === "open" || o.status === "taken"){
-          html += `<button class="danger" onclick='cancelOrder(${JSON.stringify(o).replaceAll("'","\\'")})'>取消订单</button>`;
-        }
-        if(o.status === "taken"){
-          html += `<button class="success" onclick='completeOrder(${JSON.stringify(o).replaceAll("'","\\'")})'>标记完成</button>`;
-        }
-        // 只有订单创建人可以打卡；已完成/取消不允许打卡
-        if(o.status === "open" || o.status === "taken"){
-          html += `<button onclick='addWeightLog("${o.order_id}")'>📝记录体重打卡</button>`;
-        }
-      }
+    }
+    if((isCreator || isHelper || isAdmin) && o.status === "taken"){
+      html += `<button class="success" data-act="complete">标记完成</button>`;
+    }
+    if(isCreator && (o.status === "open" || o.status === "taken")){
+      html += `<button data-act="log">📝记录体重打卡</button>`;
+    }
+    if(isHelper && o.status === "taken"){
+      html += `<button class="ghost" data-act="plan">提交减脂方案</button>`;
+    }
+    if(isCreator && o.status === "taken" && latestPlan){
+      html += `<button class="ghost" data-act="object">提交方案异议</button>`;
+    }
+    if((isCreator || isHelper) && (o.status === "taken" || o.status === "completed")){
+      html += `<button class="secondary" data-act="comment">留言</button>`;
+    }
+    if(isCreator && o.status === "completed" && reviews.length===0){
+      html += `<button class="ghost" data-act="review">评价协助人</button>`;
+    }
     html += `</div>`;
 
-    // 读取并渲染该订单全部打卡记录
-    const logs = await getWeightLogs(o.order_id);
+    if(latestPlan){
+      const warn = planAgeH!=null && planAgeH > 48 && objections.length===0
+        ? `<div class="muted">已超过 48 小时未提书面异议，按规则视为认可方案（内测提示）。</div>` : "";
+      html += `<div class="note-item note-plan"><b>减脂方案</b>（${esc(latestPlan.username)} · ${esc(new Date(latestPlan.created_at).toLocaleString())}）<br>${esc(latestPlan.content).replaceAll("\n","<br>")}${warn}</div>`;
+    }
+    if(objections.length){
+      html += `<div><b>方案异议(${objections.length})</b>`;
+      objections.forEach(n=>{
+        html += `<div class="note-item note-objection">${esc(new Date(n.created_at).toLocaleString())}｜${esc(n.username)}：${esc(n.content)}</div>`;
+      });
+      html += `</div>`;
+    }
+    if(comments.length){
+      html += `<div><b>留言(${comments.length})</b>`;
+      comments.forEach(n=>{
+        html += `<div class="note-item">${esc(new Date(n.created_at).toLocaleString())}｜${esc(n.username)}：${esc(n.content)}</div>`;
+      });
+      html += `</div>`;
+    }
+    if(reviews.length){
+      html += `<div><b>评价</b>`;
+      reviews.forEach(n=>{
+        html += `<div class="note-item">${esc(n.content).replaceAll("\n","<br>")}</div>`;
+      });
+      html += `</div>`;
+    }
     if(logs.length>0){
       html += `<div style="margin-top:10px;"><b>📊体重打卡记录(${logs.length})</b>`;
       logs.forEach(l=>{
-        const dateStr = new Date(l.log_date).toLocaleString();
-        html += `<div class="log-item">${dateStr}｜体重：${l.log_weight} ${l.log_note?"｜备注："+l.log_note:""}</div>`;
-      })
+        const dateStr = l.log_date ? new Date(l.log_date).toLocaleString() : "";
+        html += `<div class="log-item">${esc(dateStr)}｜体重：${esc(l.log_weight)} ${l.log_note?"｜备注："+esc(l.log_note):""}</div>`;
+      });
       html += `</div>`;
     }
     html += `</div>`;
   }
   wrap.innerHTML = html;
+  wrap.querySelectorAll(".order-item").forEach(card=>{
+    const oid = card.getAttribute("data-oid");
+    card.querySelectorAll("[data-act]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const act = btn.getAttribute("data-act");
+        if(act==="take") takeOrder(oid);
+        if(act==="cancel") cancelOrder(oid);
+        if(act==="complete") completeOrder(oid);
+        if(act==="log") addWeightLog(oid);
+        if(act==="plan") submitPlan(oid);
+        if(act==="object") submitObjection(oid);
+        if(act==="comment") submitComment(oid);
+        if(act==="review") submitReview(oid);
+      });
+    });
+  });
 }
 
 window.onload = function(){
   const saved = localStorage.getItem("currentUser");
   if(saved){
-    currentUser = JSON.parse(saved);
-    renderMain();
+    try{
+      currentUser = JSON.parse(saved);
+      renderMain();
+    }catch(e){
+      localStorage.removeItem("currentUser");
+    }
   }
-}
+};
 </script>
 </body>
 </html>
