@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>减肥互助社群（云端多人Demo）</title>
+  <title>减肥互助打卡（云端多人Demo）</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding:16px; background:#f7f8fa; margin:0; color:#111; }
@@ -15,7 +15,7 @@
       width:100%; box-sizing:border-box; padding:12px; font-size:16px;
       border:1px solid #ddd; border-radius:8px; margin:6px 0 12px;
     }
-    textarea { min-height:80px; resize:vertical; }
+    textarea { min-height:72px; resize:vertical; }
     button { background:#2b65ec; color:white; border:none; border-radius:8px; padding:10px 16px; font-size:15px; cursor:pointer; margin:4px 4px 4px 0; }
     button:hover { filter:brightness(0.95); }
     button.secondary { background:#6b7280; }
@@ -24,25 +24,35 @@
     button.ghost { background:#eef2ff; color:#3730a3; }
     .hide { display:none !important; }
     .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .tabs { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 14px; }
+    .tabs button { background:#e5e7eb; color:#111; }
+    .tabs button.on { background:#2b65ec; color:#fff; }
     .order-item { border:1px solid #e5e7eb; border-radius:10px; padding:14px; margin:12px 0; }
+    .order-item.warn { border-color:#f59e0b; background:#fffbeb; }
+    .order-item.window { border-color:#2b65ec; }
     .status-open {color:#059669;}
     .status-taken {color:#2563eb;}
     .status-completed {color:#7c3aed;}
     .status-cancelled {color:#dc2626;}
-    .log-item, .note-item {
+    .log-item, .note-item, .plaza-item, .tl-item {
       background:#f7f8fa; padding:8px 12px; border-radius:6px; margin:4px 0; font-size:14px;
     }
+    .log-item.unread { background:#ecfdf5; border:1px solid #a7f3d0; }
     .note-objection { background:#fef2f2; }
     .note-plan { background:#eff6ff; }
+    .note-nudge { background:#fff7ed; }
+    .note-miss { background:#f3f4f6; color:#6b7280; }
     .muted { color:#666; font-size:13px; }
-    .pill { display:inline-block; background:#eef2ff; color:#3730a3; border-radius:999px; padding:2px 8px; font-size:12px; }
-    .field-err { color:#dc2626; font-size:13px; margin-top:-8px; margin-bottom:8px; }
-    /* toast */
+    .pill { display:inline-block; background:#eef2ff; color:#3730a3; border-radius:999px; padding:2px 8px; font-size:12px; margin-right:4px; }
+    .pill.warn { background:#fef3c7; color:#92400e; }
+    .pill.ok { background:#d1fae5; color:#065f46; }
+    #board, #plazaBox, #timelineBox { background:#f8fafc; border:1px dashed #cbd5e1; border-radius:10px; padding:12px; margin:12px 0; }
+    .board-item { background:#fff; border-radius:8px; padding:10px 12px; margin:8px 0; font-size:14px; }
+    .preset { display:block; width:100%; text-align:left; background:#f1f5f9; color:#0f172a; margin:6px 0; }
     #toastWrap { position:fixed; top:16px; right:16px; z-index:10000; display:flex; flex-direction:column; gap:8px; }
     .toast { background:#111827; color:#fff; padding:10px 14px; border-radius:8px; font-size:14px; max-width:320px; box-shadow:0 4px 16px #0003; }
     .toast.ok { background:#065f46; }
     .toast.err { background:#991b1b; }
-    /* modal */
     .modal-overlay {
       position:fixed; inset:0; background:rgba(0,0,0,0.6);
       display:flex; align-items:center; justify-content:center; z-index:9999; padding:16px;
@@ -53,19 +63,19 @@
       body { padding:10px; }
       .card { padding:14px; }
       button { width:100%; margin:4px 0; }
-      .row button { width:auto; flex:1; }
+      .row button, .tabs button { width:auto; flex:1; }
     }
   </style>
 </head>
 <body>
 <div id="toastWrap"></div>
-<h1>🏃减肥互助社群（云端多人Demo）</h1>
+<h1>🏃减肥互助打卡（云端多人Demo）</h1>
 
 <div id="loginPage" class="card">
-  <h2>进入社群</h2>
+  <h2>进入打卡社群</h2>
   <input id="username" placeholder="输入你的昵称" maxlength="24" autocomplete="nickname">
   <button onclick="handleLogin()">登录社群</button>
-  <p class="muted">管理员需要在 supabase 后台把 app_users 表 is_admin 设置为 true</p>
+  <p class="muted">体重数字默认仅订单双方可见。广场只展示是否打卡。不做即时聊天。</p>
 </div>
 
 <div id="mainPage" class="card hide">
@@ -73,44 +83,88 @@
   <div class="row">
     <button class="secondary" onclick="logout()">退出登录</button>
     <button class="ghost hide" id="btnAdmin" onclick="fetchAdminOrders()">管理员：全部订单</button>
+    <button class="ghost" onclick="copyMyShare()">复制今日跟练文案</button>
   </div>
-  <hr>
 
-  <h3>📝发布减肥目标订单</h3>
-  <input id="orderTitle" placeholder="订单标题：例如：2个月减重8kg" maxlength="80">
-  <textarea id="orderDesc" placeholder="目标描述，你的计划、注意事项..." maxlength="2000"></textarea>
-  <input id="curWeight" placeholder="当前体重(kg)" type="number" step="0.1" min="20" max="300">
-  <input id="tarWeight" placeholder="目标体重(kg)" type="number" step="0.1" min="20" max="300">
-  <input id="deadline" type="date">
-  <button onclick="createOrder()">创建目标订单</button>
-
-  <hr>
-  <div class="row">
-    <button onclick="fetchAllOpenOrders()">浏览全部开放订单</button>
-    <button onclick="fetchMyOrders()">我的订单</button>
+  <div class="tabs">
+    <button class="on" id="tabPlaza" onclick="showTab('plaza')">今日广场</button>
+    <button id="tabMine" onclick="showTab('mine')">我的打卡</button>
+    <button id="tabCreate" onclick="showTab('create')">发布目标</button>
+    <button id="tabOrders" onclick="showTab('orders')">订单列表</button>
   </div>
-  <div class="row">
-    <select id="statusFilter" onchange="applyStatusFilter()">
-      <option value="">筛选：全部状态</option>
-      <option value="open">open 开放</option>
-      <option value="taken">taken 进行中</option>
-      <option value="completed">completed 已完成</option>
-      <option value="cancelled">cancelled 已取消</option>
+
+  <div id="panelPlaza">
+    <div id="plazaBox">
+      <b>今日广场</b>
+      <div class="muted">只显示进行中目标的打卡状态，不公开体重。像视频评论区的 Day N，但不会被刷走。</div>
+      <div id="plazaList" class="muted">加载中…</div>
+    </div>
+  </div>
+
+  <div id="panelMine" class="hide">
+    <div id="board">
+      <b>今日打卡看板</b>
+      <div class="muted">你的进行中目标。约定时段会高亮；超过 48 小时未打卡会标黄。</div>
+      <div id="boardList" class="muted">加载中…</div>
+    </div>
+    <div id="timelineBox">
+      <b>我的打卡时间线</b>
+      <div class="muted">仅自己和对应监护者能在订单里看到体重数字；这里是你的跟练记录。</div>
+      <div id="timelineList" class="muted">加载中…</div>
+    </div>
+  </div>
+
+  <div id="panelCreate" class="hide">
+    <h3>📝发布减肥目标</h3>
+    <input id="orderTitle" placeholder="订单标题：例如：14天减重2kg" maxlength="80">
+    <textarea id="orderDesc" placeholder="目标描述，你的计划、注意事项..." maxlength="2000"></textarea>
+    <input id="curWeight" placeholder="当前体重(kg)，仅双方可见" type="number" step="0.1" min="20" max="300">
+    <input id="tarWeight" placeholder="目标体重(kg)，仅双方可见" type="number" step="0.1" min="20" max="300">
+    <input id="deadline" type="date">
+    <label class="muted">跟练天数</label>
+    <select id="challengeDays">
+      <option value="7">7 天营</option>
+      <option value="14" selected>14 天营</option>
+      <option value="21">21 天营</option>
     </select>
+    <label class="muted">每日提醒窗口（打开网页时高亮，不推送微信）</label>
+    <select id="remindHour">
+      <option value="20">20:00–21:00</option>
+      <option value="21" selected>21:00–22:00</option>
+      <option value="22">22:00–23:00</option>
+      <option value="8">08:00–09:00</option>
+      <option value="12">12:00–13:00</option>
+    </select>
+    <button onclick="createOrder()">创建目标订单</button>
   </div>
 
-  <div id="orderListWrap"></div>
+  <div id="panelOrders" class="hide">
+    <div class="row">
+      <button onclick="fetchAllOpenOrders()">浏览全部开放订单</button>
+      <button onclick="fetchMyOrders()">我的订单</button>
+    </div>
+    <div class="row">
+      <select id="statusFilter" onchange="applyStatusFilter()">
+        <option value="">筛选：全部状态</option>
+        <option value="open">open 开放</option>
+        <option value="taken">taken 进行中</option>
+        <option value="completed">completed 已完成</option>
+        <option value="cancelled">cancelled 已取消</option>
+      </select>
+    </div>
+    <div id="orderListWrap"></div>
+  </div>
 </div>
 
 <div id="safetyModal" class="modal-overlay hide">
   <div class="modal-box">
     <h3>⚠️减肥互助安全协议</h3>
     <div class="modal-text">
-      <p>1. 参与本平台减肥互助，禁止使用极端节食、催吐、过量运动等伤害身体的减重手段。</p>
-      <p>2. 协助人给出的减肥建议仅供参考，身体不适请立刻停止并咨询医生。</p>
-      <p>3. 如果双方对方案产生分歧，可以申请平台仲裁（内测阶段由管理员查看证据后口头协调）。</p>
-      <p>4. 用户需要对自己的身体健康负全部责任，平台不承担健康损伤相关责任。</p>
-      <p>5. 创建订单即代表你认可以上全部条款。</p>
+      <p>1. 禁止极端节食、催吐、过量运动等伤害身体的减重手段。</p>
+      <p>2. 协助人建议仅供参考，身体不适立刻停止并就医。</p>
+      <p>3. 分歧可申请平台仲裁（内测由管理员查看存档后协调）。</p>
+      <p>4. 健康风险由用户自行承担。体重记录默认不对广场公开。</p>
+      <p>5. 创建订单即代表同意以上条款。</p>
     </div>
     <button id="btnAgree">我已阅读并同意协议</button>
     <button class="secondary" id="btnDisagree">拒绝（退出登录）</button>
@@ -128,6 +182,39 @@
   </div>
 </div>
 
+<div id="checkinModal" class="modal-overlay hide">
+  <div class="modal-box">
+    <h3>今日打卡</h3>
+    <label class="muted">体重 (kg)</label>
+    <input id="ckWeight" type="number" step="0.1" min="20" max="300" placeholder="例如 67.4">
+    <label class="muted">今天运动了吗</label>
+    <select id="ckMove">
+      <option value="是">是</option>
+      <option value="否">否</option>
+      <option value="休息">身体不适 / 主动休息</option>
+    </select>
+    <label class="muted">备注（可选）</label>
+    <textarea id="ckNote" placeholder="吃了什么 / 走了多少步，一句即可"></textarea>
+    <label class="row"><input type="checkbox" id="ckSick" style="width:auto;margin:0 8px 0 0"> 今天请假，不记体重（身体不适）</label>
+    <div class="row">
+      <button onclick="submitCheckinForm()">提交打卡</button>
+      <button class="secondary" onclick="document.getElementById('checkinModal').classList.add('hide')">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="nudgeModal" class="modal-overlay hide">
+  <div class="modal-box">
+    <h3>发送提醒（固定短句，不是聊天）</h3>
+    <p class="muted">选一句即可，会写入订单存档，对方刷新后可见。</p>
+    <button class="preset" data-nudge="现在是约定提醒时间，记得称重打卡。">现在是约定提醒时间，记得称重打卡。</button>
+    <button class="preset" data-nudge="已经超过两天没看到打卡了，今天称一下吧。">已经超过两天没看到打卡了，今天称一下吧。</button>
+    <button class="preset" data-nudge="看到你的记录了，继续保持。">看到你的记录了，继续保持。</button>
+    <button class="preset" data-nudge="今天如果身体不适就休息，不要硬撑。">今天如果身体不适就休息，不要硬撑。</button>
+    <button class="secondary" onclick="document.getElementById('nudgeModal').classList.add('hide')">取消</button>
+  </div>
+</div>
+
 <script>
 const SUPABASE_URL = "https://dhczdfkoctgoeyiufmqb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_peh0tyV_qeXH5cjaRIx7-Q_W7aeKhm5";
@@ -135,6 +222,10 @@ const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let lastOrderList = [];
 let lastHeading = "";
+let lastDetails = [];
+let nudgeTargetOrderId = null;
+let checkinTargetOrderId = null;
+const missWriteOnce = new Set();
 const DEFAULT_SAFETY_AGREEMENT = "双方承诺不使用极端节食、伤害身体的减肥方案；出现分歧可申请平台仲裁。";
 const DANGER_WORDS = ["断碳","零碳","极低热量","泻药","利尿","催吐","禁食","绝食","水煮菜减肥","苹果减肥"];
 
@@ -158,6 +249,16 @@ function toast(msg, type){
   setTimeout(()=>{ el.remove(); }, 3200);
 }
 
+function showTab(name){
+  const map = {plaza:"panelPlaza", mine:"panelMine", create:"panelCreate", orders:"panelOrders"};
+  Object.keys(map).forEach(k=>{
+    document.getElementById(map[k]).classList.toggle("hide", k!==name);
+    document.getElementById("tab"+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle("on", k===name);
+  });
+  if(name==="plaza") loadPlaza();
+  if(name==="mine" || name==="orders") fetchMyOrders();
+}
+
 let textModalResolver = null;
 function openTextModal(title, placeholder, preset){
   document.getElementById("textModalTitle").textContent = title;
@@ -179,6 +280,18 @@ function closeTextModal(val){
 document.getElementById("textModalOk").addEventListener("click", function(){
   closeTextModal(document.getElementById("textModalInput").value);
 });
+document.querySelectorAll("#nudgeModal .preset").forEach(btn=>{
+  btn.addEventListener("click", async function(){
+    const text = btn.getAttribute("data-nudge");
+    const oid = nudgeTargetOrderId;
+    document.getElementById("nudgeModal").classList.add("hide");
+    if(!oid) return;
+    const err = await addOrderNote(oid, "nudge", text);
+    if(err){ toast("提醒发送失败："+err.message,"err"); return; }
+    toast("提醒已写入订单","ok");
+    fetchMyOrders();
+  });
+});
 
 async function handleLogin(){
   const usernameInput = document.getElementById("username").value.trim();
@@ -186,10 +299,7 @@ async function handleLogin(){
   if(usernameInput.length > 24){ toast("昵称过长","err"); return; }
   try{
     const {data:userList, error:selErr} = await client
-      .from("app_users")
-      .select("*")
-      .eq("username", usernameInput);
-
+      .from("app_users").select("*").eq("username", usernameInput);
     if(selErr) throw selErr;
     let user = null;
     if (userList && userList.length > 0) {
@@ -221,6 +331,8 @@ function renderMain(){
   if(localStorage.getItem("userAgreeSafety") !== "true"){
     showSafetyModal();
   }
+  showTab("plaza");
+  fetchMyOrders();
 }
 
 function logout(){
@@ -241,6 +353,39 @@ function validateOrderForm(title, curW, tarW, deadline){
   return "";
 }
 
+function hoursSince(iso){
+  if(!iso) return Infinity;
+  return (Date.now() - new Date(iso).getTime())/3600000;
+}
+function isToday(iso){
+  if(!iso) return false;
+  const a = new Date(iso), b = new Date();
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+function dayKey(iso){
+  const d = iso ? new Date(iso) : new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function currentHour(){ return new Date().getHours(); }
+function parseSetting(notes){
+  const s = (notes||[]).filter(n=>n.kind==="setting").pop();
+  const out = {hour:21, days:14};
+  if(!s) return out;
+  try{
+    const obj = JSON.parse(s.content);
+    if(obj && Number.isFinite(+obj.hour)) out.hour = +obj.hour;
+    if(obj && Number.isFinite(+obj.days)) out.days = +obj.days;
+  }catch(e){
+    const m = String(s.content).match(/(\d{1,2})/);
+    if(m) out.hour = +m[1];
+  }
+  return out;
+}
+function canSeeWeight(o){
+  if(!currentUser || !o) return false;
+  return o.creator_id===currentUser.id || o.helper_id===currentUser.id || !!currentUser.is_admin;
+}
+
 async function createOrder(){
   if(localStorage.getItem("userAgreeSafety") !== "true"){
     showSafetyModal();
@@ -251,6 +396,8 @@ async function createOrder(){
   const curW = Number(document.getElementById("curWeight").value);
   const tarW = Number(document.getElementById("tarWeight").value);
   const deadline = document.getElementById("deadline").value;
+  const remindHour = Number(document.getElementById("remindHour").value);
+  const days = Number(document.getElementById("challengeDays").value);
   const err = validateOrderForm(title, curW, tarW, deadline);
   if(err){ toast(err,"err"); return; }
   const orderId = "o_"+Date.now();
@@ -271,13 +418,15 @@ async function createOrder(){
   };
   const {error} = await client.from("orders").insert([payload]);
   if(error){ toast("创建失败："+error.message,"err"); return; }
+  await addOrderNote(orderId, "setting", JSON.stringify({hour: remindHour, days: days}));
   toast("订单创建成功","ok");
   document.getElementById("orderTitle").value="";
   document.getElementById("orderDesc").value="";
   document.getElementById("curWeight").value="";
   document.getElementById("tarWeight").value="";
   document.getElementById("deadline").value="";
-  fetchAllOpenOrders();
+  showTab("orders");
+  fetchMyOrders();
 }
 
 async function takeOrder(orderId){
@@ -286,15 +435,10 @@ async function takeOrder(orderId){
   if(latest.status !== "open"){ toast("该订单不可接单","err"); return; }
   if(latest.creator_id === currentUser.id){ toast("不能接自己发布的订单","err"); return; }
   const {error}=await client.from("orders")
-    .update({
-      status:"taken",
-      helper_id:currentUser.id,
-      helper_name:currentUser.username
-    })
-    .eq("order_id", orderId)
-    .eq("status","open");
+    .update({ status:"taken", helper_id:currentUser.id, helper_name:currentUser.username })
+    .eq("order_id", orderId).eq("status","open");
   if(error){toast("接单失败："+error.message,"err");return;}
-  toast("接单成功","ok");
+  toast("接单成功，你已成为监护者","ok");
   fetchMyOrders();
 }
 
@@ -308,59 +452,74 @@ async function cancelOrder(orderId){
   if(o.status !== "open" && o.status !== "taken"){
     toast("当前状态不可取消","err"); return;
   }
-  const {error}=await client.from("orders")
-    .update({status:"cancelled"})
-    .eq("order_id", orderId);
+  const {error}=await client.from("orders").update({status:"cancelled"}).eq("order_id", orderId);
   if(error){toast("取消失败："+error.message,"err");return;}
   toast("订单已取消","ok");
   fetchMyOrders();
 }
 
 async function completeOrder(orderId){
-  if(!confirm("确认标记该订单为已完成？将进入确认窗口（内测不涉及资金）。")) return;
+  if(!confirm("确认标记该订单为已完成？")) return;
   const {data:o} = await client.from("orders").select("*").eq("order_id", orderId).single();
   if(!o){ toast("订单不存在","err"); return; }
   if(o.creator_id !== currentUser.id && o.helper_id !== currentUser.id && !currentUser.is_admin){
     toast("无权标记完成","err"); return;
   }
   if(o.status !== "taken"){ toast("仅进行中的订单可标记完成","err"); return; }
-  const patch = { status:"completed" };
-  // completed_at 为追加字段，若库中尚无该列会失败，再降级重试
   const try1 = await client.from("orders").update({ status:"completed", completed_at: new Date().toISOString() }).eq("order_id", orderId);
   if(try1.error){
-    const {error}=await client.from("orders").update(patch).eq("order_id", orderId);
+    const {error}=await client.from("orders").update({status:"completed"}).eq("order_id", orderId);
     if(error){toast("完成失败："+error.message,"err");return;}
   }
   toast("订单已标记完成","ok");
   fetchMyOrders();
 }
 
-async function addWeightLog(orderId){
-  const raw = await openTextModal("记录体重打卡", "第一行填体重(kg)，第二行可选备注");
-  if(raw === null) return;
-  const lines = String(raw).split("\n");
-  const numW = parseFloat(lines[0]);
-  const note = lines.slice(1).join("\n").trim();
-  if(isNaN(numW) || numW < 20 || numW > 300){ toast("体重需在 20–300kg","err"); return; }
+function openCheckin(orderId){
+  checkinTargetOrderId = orderId;
+  document.getElementById("ckWeight").value = "";
+  document.getElementById("ckNote").value = "";
+  document.getElementById("ckMove").value = "是";
+  document.getElementById("ckSick").checked = false;
+  document.getElementById("checkinModal").classList.remove("hide");
+}
+
+async function submitCheckinForm(){
+  const orderId = checkinTargetOrderId;
+  if(!orderId) return;
+  const sick = document.getElementById("ckSick").checked;
+  const move = document.getElementById("ckMove").value;
+  const note = document.getElementById("ckNote").value.trim();
+  let numW = parseFloat(document.getElementById("ckWeight").value);
+  if(sick){
+    numW = Number.isFinite(numW) ? numW : 0;
+  }else if(isNaN(numW) || numW < 20 || numW > 300){
+    toast("体重需在 20–300kg，请假可勾选不记体重","err"); return;
+  }
+  const extra = [move==="是"?"运动:是":(move==="否"?"运动:否":"运动:休息")];
+  if(sick) extra.unshift("请假");
+  if(note) extra.push(note);
+  const joined = extra.join("｜");
+  const hits = DANGER_WORDS.filter(w => joined.includes(w));
+  if(hits.length && !confirm("备注里出现可能危险词："+hits.join("、")+"\n仍要提交？")) return;
   const logId = "wl_"+Date.now();
   const payload = {
     id: logId,
     order_id: orderId,
     user_id: currentUser.id,
-    log_weight: numW,
-    log_note: note
+    log_weight: sick ? (Number.isFinite(parseFloat(document.getElementById("ckWeight").value)) ? parseFloat(document.getElementById("ckWeight").value) : 0) : numW,
+    log_note: joined
   };
   const {error}=await client.from("weight_logs").insert([payload]);
   if(error){ toast("打卡保存失败："+error.message,"err"); return; }
+  document.getElementById("checkinModal").classList.add("hide");
   toast("打卡已保存","ok");
   fetchMyOrders();
 }
 
 async function getWeightLogs(orderId){
   const {data,error}=await client.from("weight_logs")
-    .select("*")
-    .eq("order_id",orderId)
-    .order("log_date",{ascending:false});
+    .select("*").eq("order_id",orderId).order("log_date",{ascending:false});
   if(error) return [];
   return data || [];
 }
@@ -380,40 +539,34 @@ async function addOrderNote(orderId, kind, content){
 
 async function getOrderNotes(orderId){
   const {data,error}=await client.from("order_notes")
-    .select("*")
-    .eq("order_id",orderId)
-    .order("created_at",{ascending:true});
+    .select("*").eq("order_id",orderId).order("created_at",{ascending:true});
   if(error) return [];
   return data || [];
 }
 
 function scanDangerWords(text){
-  const hits = DANGER_WORDS.filter(w => text.includes(w));
-  return hits;
+  return DANGER_WORDS.filter(w => text.includes(w));
 }
 
 async function submitPlan(orderId){
-  const raw = await openTextModal("提交 / 更新减脂方案", "写明饮食结构、运动安排、注意事项（禁止极端伤身方案）");
+  const raw = await openTextModal("提交 / 更新减脂方案", "写明饮食结构、运动安排（禁止极端伤身方案）");
   if(raw === null) return;
   const content = String(raw).trim();
   if(!content){ toast("方案不能为空","err"); return; }
   const hits = scanDangerWords(content);
   if(hits.length){
-    if(!confirm("检测到可能危险关键词："+hits.join("、")+"\n仍要提交？管理员可据此判定方案违规。")) return;
+    if(!confirm("检测到可能危险关键词："+hits.join("、")+"\n仍要提交？")) return;
   }
   const err = await addOrderNote(orderId, "plan", content);
-  if(err){ toast("方案保存失败："+err.message+"（请先在 Supabase 执行新增 order_notes 表 SQL）","err"); return; }
+  if(err){ toast("方案保存失败："+err.message+"（请先执行 order_notes 建表 SQL）","err"); return; }
   const patch = await client.from("orders").update({ plan_text: content, plan_at: new Date().toISOString() }).eq("order_id", orderId);
-  if(patch.error){
-    // 追加字段尚未执行时忽略，方案仍在 order_notes
-    console.warn(patch.error);
-  }
+  if(patch.error) console.warn(patch.error);
   toast("方案已存档","ok");
   fetchMyOrders();
 }
 
 async function submitObjection(orderId){
-  const raw = await openTextModal("提交方案异议", "请书面说明异议点（建议在收到方案 48 小时内提交）");
+  const raw = await openTextModal("提交方案异议", "书面说明异议点（建议收到方案 48 小时内）");
   if(raw === null) return;
   const content = String(raw).trim();
   if(!content){ toast("异议不能为空","err"); return; }
@@ -424,7 +577,7 @@ async function submitObjection(orderId){
 }
 
 async function submitComment(orderId){
-  const raw = await openTextModal("订单留言", "给对方的监督留言 / 沟通记录");
+  const raw = await openTextModal("订单留言（存档，非即时聊天）", "给对方的一句监督留言");
   if(raw === null) return;
   const content = String(raw).trim();
   if(!content){ toast("留言不能为空","err"); return; }
@@ -445,16 +598,42 @@ async function submitReview(orderId){
   const err = await addOrderNote(orderId, "review", content);
   if(err){ toast("评价失败："+err.message,"err"); return; }
   const patch = await client.from("orders").update({
-    rating: score,
-    review_text: text,
-    review_at: new Date().toISOString()
+    rating: score, review_text: text, review_at: new Date().toISOString()
   }).eq("order_id", orderId);
   if(patch.error) console.warn(patch.error);
   toast("评价已提交","ok");
   fetchMyOrders();
 }
 
+async function markLogSeen(orderId, logId){
+  const err = await addOrderNote(orderId, "seen", logId);
+  if(err){ toast("标记失败："+err.message,"err"); return; }
+  toast("已告诉对方：打卡被看到了","ok");
+  fetchMyOrders();
+}
+
+function openNudge(orderId){
+  nudgeTargetOrderId = orderId;
+  document.getElementById("nudgeModal").classList.remove("hide");
+}
+
+async function maybeWriteMiss(o, logs, notes){
+  if(!o || o.status!=="taken") return;
+  if(o.creator_id!==currentUser.id && o.helper_id!==currentUser.id && !currentUser.is_admin) return;
+  const cfg = parseSetting(notes);
+  if(currentHour() <= cfg.hour) return;
+  const latest = logs[0];
+  if(latest && isToday(latest.log_date)) return;
+  const today = dayKey();
+  const already = (notes||[]).some(n=>n.kind==="miss" && String(n.content).indexOf(today)===0);
+  const token = o.order_id+"_"+today;
+  if(already || missWriteOnce.has(token)) return;
+  missWriteOnce.add(token);
+  await addOrderNote(o.order_id, "miss", today+" 约定窗口已过，系统记录本日未打卡");
+}
+
 async function fetchAllOpenOrders(){
+  showTab("orders");
   const {data,error}=await client.from("orders").select("*").eq("status","open").order("create_at",{ascending:false});
   if(error){toast(error.message,"err");return;}
   renderOrderList(data||[],"全部开放订单");
@@ -470,23 +649,58 @@ async function fetchMyOrders(){
 
 async function fetchAdminOrders(){
   if(!currentUser.is_admin){ toast("无管理员权限","err"); return; }
+  showTab("orders");
   const {data,error}=await client.from("orders").select("*").order("create_at",{ascending:false});
   if(error){toast(error.message,"err");return;}
   renderOrderList(data||[],"管理员 · 全部订单");
 }
 
+async function loadPlaza(){
+  const box = document.getElementById("plazaList");
+  const {data,error}=await client.from("orders").select("*")
+    .in("status",["open","taken"])
+    .order("create_at",{ascending:false})
+    .limit(40);
+  if(error){ box.textContent = error.message; return; }
+  const list = data||[];
+  if(!list.length){ box.innerHTML = `<div class="muted">广场还没有进行中的目标。</div>`; return; }
+  const details = await Promise.all(list.map(async (o)=>{
+    const [logs, notes] = await Promise.all([getWeightLogs(o.order_id), getOrderNotes(o.order_id)]);
+    return {o, logs, notes};
+  }));
+  let html = "";
+  details.forEach(({o, logs, notes})=>{
+    const latest = logs[0];
+    const todayOk = latest && isToday(latest.log_date);
+    const cfg = parseSetting(notes);
+    const st = o.status==="open" ? "待接单" : (todayOk ? "今日已打卡" : "今日未打卡");
+    html += `<div class="plaza-item">
+      <b>${esc(o.creator_name)}</b> · ${esc(o.title)}
+      <div class="muted">${cfg.days}天营 ｜ ${esc(st)} ｜ 连续约 ${streakDays(logs)} 天${o.helper_name?" ｜ 监护 "+esc(o.helper_name):""}</div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+
 function applyStatusFilter(){
   const v = document.getElementById("statusFilter").value;
   const list = v ? lastOrderList.filter(o=>o.status===v) : lastOrderList;
-  paintOrderList(list, lastHeading + (v?(" · "+v):""));
+  paintOrderList(list, lastHeading + (v?(" · "+v):""), lastDetails.filter(d=>!v || d.o.status===v));
 }
 
 async function renderOrderList(list,headingText){
   lastOrderList = list || [];
   lastHeading = headingText;
-  const v = document.getElementById("statusFilter").value;
+  const details = await Promise.all(lastOrderList.map(async (o)=>{
+    const [logs, notes] = await Promise.all([getWeightLogs(o.order_id), getOrderNotes(o.order_id)]);
+    await maybeWriteMiss(o, logs, notes);
+    return {o, logs, notes};
+  }));
+  lastDetails = details;
+  const v = document.getElementById("statusFilter") ? document.getElementById("statusFilter").value : "";
   const filtered = v ? lastOrderList.filter(o=>o.status===v) : lastOrderList;
-  await paintOrderList(filtered, headingText + (v?(" · "+v):""));
+  const filteredDetails = details.filter(d=>!v || d.o.status===v);
+  await paintOrderList(filtered, headingText + (v?(" · "+v):""), filteredDetails);
 }
 
 function esc(s){
@@ -495,8 +709,97 @@ function esc(s){
     .replaceAll('"',"&quot;");
 }
 
-async function paintOrderList(list,headingText){
+function streakDays(logs){
+  if(!logs.length) return 0;
+  const days = new Set(logs.map(l=>dayKey(l.log_date)));
+  let n = 0;
+  const cur = new Date();
+  for(let i=0;i<60;i++){
+    const key = dayKey(cur.toISOString());
+    if(!days.has(key)){
+      if(n===0){ cur.setDate(cur.getDate()-1); continue; }
+      break;
+    }
+    n++;
+    cur.setDate(cur.getDate()-1);
+  }
+  return n;
+}
+
+function renderBoard(details){
+  const box = document.getElementById("boardList");
+  if(!box) return;
+  const active = details.filter(({o})=>o.status==="open"||o.status==="taken");
+  if(!active.length){
+    box.innerHTML = `<div class="muted">还没有进行中的目标。</div>`;
+    renderTimeline(details);
+    return;
+  }
+  let html = "";
+  active.forEach(({o, logs, notes})=>{
+    const latest = logs[0];
+    const cfg = parseSetting(notes);
+    const windowOn = currentHour()===cfg.hour;
+    const missed = !latest || hoursSince(latest.log_date) >= 48;
+    const todayOk = latest && isToday(latest.log_date);
+    const isCreator = o.creator_id === currentUser.id;
+    const wtxt = canSeeWeight(o) && latest && latest.log_weight ? ("最新 "+latest.log_weight+"kg") : "体重已隐藏";
+    html += `<div class="board-item">
+      <div><b>${esc(o.title)}</b>
+        ${todayOk?'<span class="pill ok">今日已打卡</span>':'<span class="pill warn">今日未打卡</span>'}
+        ${windowOn?'<span class="pill">正处于提醒窗口 '+cfg.hour+':00</span>':''}
+        ${missed && o.status==="taken"?'<span class="pill warn">超过48小时未打卡</span>':''}
+      </div>
+      <div class="muted">${cfg.days}天营 ｜ ${isCreator?"减重的人":"监护者"} ｜ 连续约 ${streakDays(logs)} 天 ｜ ${esc(wtxt)}</div>
+    </div>`;
+  });
+  box.innerHTML = html;
+  renderTimeline(details);
+}
+
+function renderTimeline(details){
+  const box = document.getElementById("timelineList");
+  if(!box) return;
+  const mine = details.filter(({o})=>o.creator_id===currentUser.id);
+  const rows = [];
+  mine.forEach(({o, logs})=>{
+    logs.forEach(l=>rows.push({o,l}));
+  });
+  rows.sort((a,b)=> new Date(b.l.log_date||0) - new Date(a.l.log_date||0));
+  if(!rows.length){
+    box.innerHTML = `<div class="muted">还没有打卡。到「我的订单」里点今日打卡。</div>`;
+    return;
+  }
+  let html = "";
+  rows.slice(0,30).forEach(({o,l}, idx)=>{
+    const dayN = rows.filter(r=>r.o.order_id===o.order_id && new Date(r.l.log_date)<=new Date(l.log_date)).length;
+    const dateStr = l.log_date ? new Date(l.log_date).toLocaleString() : "";
+    html += `<div class="tl-item"><b>${esc(o.title)}</b> · Day ${esc(String(streakDays([l].concat([]))||""))}
+      <div class="muted">${esc(dateStr)} ｜ ${canSeeWeight(o)?("体重 "+esc(l.log_weight)+"kg"):"体重已隐藏"} ｜ ${esc(l.log_note||"")}</div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+
+function copyMyShare(){
+  const mine = lastDetails.filter(({o})=>o.creator_id===currentUser.id && (o.status==="open"||o.status==="taken"));
+  const first = mine[0];
+  const n = first ? Math.max(1, streakDays(first.logs) || (first.logs[0] && isToday(first.logs[0].log_date) ? 1 : 0)) : 0;
+  const title = first ? first.o.title : "减重跟练";
+  const checked = first && first.logs[0] && isToday(first.logs[0].log_date);
+  const text = `我在跟练「${title}」第 ${n||1} 天，今天${checked?"已打卡":"还没打卡"}。不公开体重，只互相盯有没有出现。`;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast("已复制，可贴到视频评论区","ok")).catch(()=>prompt("复制下面文案", text));
+  }else{
+    prompt("复制下面文案", text);
+  }
+}
+
+async function paintOrderList(list,headingText,details){
   const wrap = document.getElementById("orderListWrap");
+  if(!details) details = lastDetails.filter(d=>list.some(o=>o.order_id===d.o.order_id));
+  renderBoard(lastDetails);
+
   let html = `<h4>${esc(headingText)} (${list.length})</h4>`;
   if(!list.length){
     html += `<p class="muted">暂无订单</p>`;
@@ -504,38 +807,41 @@ async function paintOrderList(list,headingText){
     return;
   }
 
-  const details = await Promise.all(list.map(async (o)=>{
-    const [logs, notes] = await Promise.all([getWeightLogs(o.order_id), getOrderNotes(o.order_id)]);
-    return {o, logs, notes};
-  }));
-
   for(const {o, logs, notes} of details){
-    let statusClass = "status-"+o.status;
     const isCreator = o.creator_id === currentUser.id;
     const isHelper = o.helper_id === currentUser.id;
     const isAdmin = !!currentUser.is_admin;
+    const seeW = canSeeWeight(o);
     const plans = notes.filter(n=>n.kind==="plan");
     const objections = notes.filter(n=>n.kind==="objection");
     const comments = notes.filter(n=>n.kind==="comment");
     const reviews = notes.filter(n=>n.kind==="review");
+    const nudges = notes.filter(n=>n.kind==="nudge");
+    const misses = notes.filter(n=>n.kind==="miss");
+    const seens = new Set(notes.filter(n=>n.kind==="seen").map(n=>n.content));
     const latestPlan = plans.length ? plans[plans.length-1] : null;
-    let planAgeH = null;
-    if(latestPlan && latestPlan.created_at){
-      planAgeH = (Date.now() - new Date(latestPlan.created_at).getTime())/3600000;
-    }
+    const cfg = parseSetting(notes);
+    const windowOn = currentHour()===cfg.hour && o.status==="taken";
+    const latest = logs[0];
+    const missed = o.status==="taken" && (!latest || hoursSince(latest.log_date) >= 48);
+    let cls = "order-item";
+    if(missed) cls += " warn";
+    else if(windowOn) cls += " window";
+    const wline = seeW ? (`体重：${esc(o.cur_w)} → ${esc(o.tar_w)} kg`) : "体重：仅双方可见";
 
-    html += `<div class="order-item" data-oid="${esc(o.order_id)}">
-      <div><strong>${esc(o.title)}</strong> <span class="${statusClass}">[${esc(o.status)}]</span></div>
-      <div>发布人：${esc(o.creator_name)}</div>
-      <div>体重：${esc(o.cur_w)} → ${esc(o.tar_w)} kg</div>
-      <div>截止：${esc(o.deadline)}</div>
+    html += `<div class="${cls}" data-oid="${esc(o.order_id)}">
+      <div><strong>${esc(o.title)}</strong> <span class="status-${esc(o.status)}">[${esc(o.status)}]</span>
+        <span class="pill">${cfg.days}天营</span>
+        ${windowOn?'<span class="pill">提醒窗口中</span>':''}
+        ${missed?'<span class="pill warn">48h未打卡</span>':''}
+      </div>
+      <div>发布人：${esc(o.creator_name)} ${o.helper_name?("｜监护者："+esc(o.helper_name)):""}</div>
+      <div>${wline} ｜ 截止：${esc(o.deadline)} ｜ 提醒 ${cfg.hour}:00</div>
       ${o.description ? `<div>描述：${esc(o.description)}</div>` : ""}
-      ${o.helper_name ? `<div>协助人：${esc(o.helper_name)}</div>`:""}
-      <div class="muted">协议：${esc(o.safety_agreement||DEFAULT_SAFETY_AGREEMENT)}</div>
       <div class="btn-group">`;
 
     if(o.status==="open" && !isCreator){
-      html += `<button data-act="take">接单</button>`;
+      html += `<button data-act="take">接单成为监护者</button>`;
     }
     if(isCreator || isAdmin){
       if(o.status === "open" || o.status === "taken"){
@@ -546,36 +852,55 @@ async function paintOrderList(list,headingText){
       html += `<button class="success" data-act="complete">标记完成</button>`;
     }
     if(isCreator && (o.status === "open" || o.status === "taken")){
-      html += `<button data-act="log">📝记录体重打卡</button>`;
+      html += `<button data-act="log">📝今日打卡</button>`;
     }
     if(isHelper && o.status === "taken"){
       html += `<button class="ghost" data-act="plan">提交减脂方案</button>`;
+      html += `<button class="ghost" data-act="nudge">一键提醒打卡</button>`;
+    }
+    if(isCreator && o.status === "taken"){
+      html += `<button class="ghost" data-act="nudge">提醒监护者看一眼</button>`;
     }
     if(isCreator && o.status === "taken" && latestPlan){
       html += `<button class="ghost" data-act="object">提交方案异议</button>`;
     }
     if((isCreator || isHelper) && (o.status === "taken" || o.status === "completed")){
-      html += `<button class="secondary" data-act="comment">留言</button>`;
+      html += `<button class="secondary" data-act="comment">存档留言</button>`;
     }
     if(isCreator && o.status === "completed" && reviews.length===0){
       html += `<button class="ghost" data-act="review">评价协助人</button>`;
     }
     html += `</div>`;
 
-    if(latestPlan){
-      const warn = planAgeH!=null && planAgeH > 48 && objections.length===0
+    if(latestPlan && seeW){
+      let planAgeH = latestPlan.created_at ? hoursSince(latestPlan.created_at) : 0;
+      const warn = planAgeH > 48 && objections.length===0
         ? `<div class="muted">已超过 48 小时未提书面异议，按规则视为认可方案（内测提示）。</div>` : "";
       html += `<div class="note-item note-plan"><b>减脂方案</b>（${esc(latestPlan.username)} · ${esc(new Date(latestPlan.created_at).toLocaleString())}）<br>${esc(latestPlan.content).replaceAll("\n","<br>")}${warn}</div>`;
     }
-    if(objections.length){
+    if(misses.length){
+      html += `<div><b>系统未打卡记录</b>`;
+      misses.slice(-5).forEach(n=>{
+        html += `<div class="note-item note-miss">${esc(n.content)}</div>`;
+      });
+      html += `</div>`;
+    }
+    if(nudges.length){
+      html += `<div><b>提醒记录(${nudges.length})</b>`;
+      nudges.slice(-8).forEach(n=>{
+        html += `<div class="note-item note-nudge">${esc(new Date(n.created_at).toLocaleString())}｜${esc(n.username)}：${esc(n.content)}</div>`;
+      });
+      html += `</div>`;
+    }
+    if(objections.length && seeW){
       html += `<div><b>方案异议(${objections.length})</b>`;
       objections.forEach(n=>{
         html += `<div class="note-item note-objection">${esc(new Date(n.created_at).toLocaleString())}｜${esc(n.username)}：${esc(n.content)}</div>`;
       });
       html += `</div>`;
     }
-    if(comments.length){
-      html += `<div><b>留言(${comments.length})</b>`;
+    if(comments.length && (seeW || isCreator || isHelper)){
+      html += `<div><b>存档留言(${comments.length})</b>`;
       comments.forEach(n=>{
         html += `<div class="note-item">${esc(new Date(n.created_at).toLocaleString())}｜${esc(n.username)}：${esc(n.content)}</div>`;
       });
@@ -589,10 +914,17 @@ async function paintOrderList(list,headingText){
       html += `</div>`;
     }
     if(logs.length>0){
-      html += `<div style="margin-top:10px;"><b>📊体重打卡记录(${logs.length})</b>`;
+      html += `<div style="margin-top:10px;"><b>📊打卡(${logs.length}) · 连续约 ${streakDays(logs)} 天</b>`;
       logs.forEach(l=>{
         const dateStr = l.log_date ? new Date(l.log_date).toLocaleString() : "";
-        html += `<div class="log-item">${esc(dateStr)}｜体重：${esc(l.log_weight)} ${l.log_note?"｜备注："+esc(l.log_note):""}</div>`;
+        const seen = seens.has(l.id);
+        const unread = isHelper && !seen;
+        const wpart = seeW ? ("体重："+esc(l.log_weight)) : "体重已隐藏";
+        html += `<div class="log-item ${unread?"unread":""}">${esc(dateStr)}｜${wpart} ${l.log_note?"｜"+esc(l.log_note):""} ${seen?'<span class="pill ok">监护者已看到</span>':''}`;
+        if(isHelper && !seen && o.status==="taken"){
+          html += ` <button class="ghost" data-act="seen" data-log="${esc(l.id)}">标记已看到</button>`;
+        }
+        html += `</div>`;
       });
       html += `</div>`;
     }
@@ -607,11 +939,13 @@ async function paintOrderList(list,headingText){
         if(act==="take") takeOrder(oid);
         if(act==="cancel") cancelOrder(oid);
         if(act==="complete") completeOrder(oid);
-        if(act==="log") addWeightLog(oid);
+        if(act==="log") openCheckin(oid);
         if(act==="plan") submitPlan(oid);
         if(act==="object") submitObjection(oid);
         if(act==="comment") submitComment(oid);
         if(act==="review") submitReview(oid);
+        if(act==="nudge") openNudge(oid);
+        if(act==="seen") markLogSeen(oid, btn.getAttribute("data-log"));
       });
     });
   });
