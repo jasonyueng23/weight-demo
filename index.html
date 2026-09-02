@@ -6,11 +6,38 @@
   <title>减肥互助打卡（云端多人Demo）</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding:16px; background:#f7f8fa; margin:0; color:#111; }
-    h1 { font-size:22px; margin:8px 0 16px; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding:16px; margin:0; color:#111;
+      min-height:100vh;
+      background:
+        radial-gradient(900px 420px at 8% -10%, #c7f0d8 0%, transparent 55%),
+        radial-gradient(700px 380px at 110% 8%, #c9dcff 0%, transparent 50%),
+        radial-gradient(600px 300px at 70% 110%, #ffe7c2 0%, transparent 45%),
+        linear-gradient(180deg, #eef7f1 0%, #f4f7fb 45%, #eef2f7 100%);
+    }
+    body::before {
+      content:"";
+      position:fixed; inset:0; pointer-events:none; z-index:0;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72'><circle cx='6' cy='6' r='1.2' fill='%232b65ec' fill-opacity='0.08'/></svg>");
+    }
+    .hero, .card, #toastWrap { position:relative; z-index:1; }
+    .hero {
+      max-width:860px; margin:0 auto 16px;
+      display:flex; align-items:center; gap:14px;
+    }
+    .hero-art { width:72px; height:72px; flex:0 0 72px; }
+    h1 { font-size:22px; margin:0 0 6px; }
+    .hero p { margin:0; color:#4b5563; font-size:14px; }
     h2 { font-size:18px; margin:0 0 12px; }
     h3 { font-size:16px; margin:16px 0 8px; }
-    .card { background:#fff; border-radius:12px; padding:20px; max-width:860px; box-shadow:0 2px 12px #00000012; margin:0 auto 16px; }
+    .card {
+      background:rgba(255,255,255,0.88);
+      backdrop-filter: blur(10px);
+      border:1px solid rgba(255,255,255,0.7);
+      border-radius:16px; padding:20px; max-width:860px;
+      box-shadow:0 8px 28px #1e3a5f14; margin:0 auto 16px;
+    }
     input, textarea, select {
       width:100%; box-sizing:border-box; padding:12px; font-size:16px;
       border:1px solid #ddd; border-radius:8px; margin:6px 0 12px;
@@ -69,7 +96,18 @@
 </head>
 <body>
 <div id="toastWrap"></div>
-<h1>🏃减肥互助打卡（云端多人Demo）</h1>
+<div class="hero">
+  <svg class="hero-art" viewBox="0 0 72 72" aria-hidden="true">
+    <rect width="72" height="72" rx="18" fill="#2b65ec"/>
+    <circle cx="36" cy="20" r="8" fill="#fff"/>
+    <path d="M24 58c2-12 8-18 12-18s10 6 12 18" fill="#dbeafe"/>
+    <path d="M22 40h10l4-8 4 12 3-6h7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <div>
+    <h1>减肥互助打卡</h1>
+    <p>云端多人 Demo · 广场只看有没有出现，体重默认不公开</p>
+  </div>
+</div>
 
 <div id="loginPage" class="card">
   <h2>进入打卡社群</h2>
