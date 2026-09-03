@@ -101,7 +101,7 @@
 <body>
 <div id="toastWrap"></div>
 <div class="hero">
-  <img class="hero-art" src="decoy.jpg" alt="鼓励打卡">
+  <img class="hero-art" src="decoy.jpeg" alt="鼓励打卡">
   <div>
     <h1>减肥互助打卡</h1>
     <p>云端多人 Demo · 广场只看有没有出现，体重默认不公开</p>
@@ -110,9 +110,14 @@
 
 <div id="loginPage" class="card">
   <h2>进入打卡社群</h2>
-  <input id="username" placeholder="输入你的昵称" maxlength="24" autocomplete="nickname">
-  <button onclick="handleLogin()">登录社群</button>
-  <p class="muted">体重数字默认仅订单双方可见。广场只展示是否打卡。不做即时聊天。</p>
+  <input id="username" placeholder="昵称（登录名，3–24字）" maxlength="24" autocomplete="username">
+  <input id="password" placeholder="密码（至少 6 位）" type="password" maxlength="64" autocomplete="current-password">
+  <input id="email" placeholder="邮箱（注册时填写，登录可留空）" type="email" maxlength="80" autocomplete="email">
+  <div class="row">
+    <button onclick="handleRegister()">注册</button>
+    <button class="secondary" onclick="handleLogin()">登录</button>
+  </div>
+  <p class="muted">昵称不再等于账号。没有密码的旧昵称不能再直接进入，请重新注册。邮箱确认要到正式接入登录服务后再开，这一版先把密码存进用户表。</p>
 </div>
 
 <div id="mainPage" class="card hide">
@@ -330,27 +335,76 @@ document.querySelectorAll("#nudgeModal .preset").forEach(btn=>{
   });
 });
 
+async function hashPassword(username, password){
+  const raw = username + "::" + password;
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+function publicUser(u){
+  if(!u) return u;
+  const {password_hash, ...rest} = u;
+  return rest;
+}
+function readAuthForm(){
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+  const email = document.getElementById("email").value.trim();
+  return {username, password, email};
+}
+
+async function handleRegister(){
+  const {username, password, email} = readAuthForm();
+  if(username.length < 3 || username.length > 24){ toast("昵称需 3–24 字","err"); return; }
+  if(password.length < 6){ toast("密码至少 6 位","err"); return; }
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast("邮箱格式不对","err"); return; }
+  try{
+    const {data:exist, error:selErr} = await client.from("app_users").select("id,password_hash").eq("username", username);
+    if(selErr) throw selErr;
+    if(exist && exist.length){
+      toast("这个昵称已被注册，请直接登录或换一个","err"); return;
+    }
+    const password_hash = await hashPassword(username, password);
+    const newId = "u_"+Date.now();
+    const row = {id:newId, username, is_admin:false, password_hash};
+    if(email) row.email = email;
+    const {data:newUser, error:insErr} = await client.from("app_users").insert([row]).select().single();
+    if(insErr){
+      if(/password_hash|email/i.test(insErr.message||"")){
+        toast("请先在 Supabase 执行追加 password_hash / email 的 SQL","err");
+      }
+      throw insErr;
+    }
+    currentUser = publicUser(newUser);
+    localStorage.setItem("currentUser", JSON.stringify(currentUser));
+    toast("注册成功","ok");
+    renderMain();
+  }catch(e){
+    console.error(e);
+    toast("注册失败："+(e.message||e),"err");
+  }
+}
+
 async function handleLogin(){
-  const usernameInput = document.getElementById("username").value.trim();
-  if(!usernameInput){ toast("请输入昵称","err"); return; }
-  if(usernameInput.length > 24){ toast("昵称过长","err"); return; }
+  const {username, password} = readAuthForm();
+  if(!username){ toast("请输入昵称","err"); return; }
+  if(!password){ toast("请输入密码","err"); return; }
   try{
     const {data:userList, error:selErr} = await client
-      .from("app_users").select("*").eq("username", usernameInput);
+      .from("app_users").select("*").eq("username", username);
     if(selErr) throw selErr;
-    let user = null;
-    if (userList && userList.length > 0) {
-      user = userList[0];
-    } else {
-      const newId = "u_"+Date.now();
-      const {data:newUser, error:insErr} = await client.from("app_users")
-        .insert([{id:newId, username:usernameInput, is_admin:false}])
-        .select().single();
-      if(insErr) throw insErr;
-      user = newUser;
+    if(!userList || !userList.length){
+      toast("账号不存在，请先注册","err"); return;
     }
-    localStorage.setItem("currentUser", JSON.stringify(user));
-    currentUser = user;
+    const user = userList[0];
+    if(!user.password_hash){
+      toast("这是旧版无密码昵称，无法登录。请换新昵称重新注册。","err"); return;
+    }
+    const expect = await hashPassword(username, password);
+    if(expect !== user.password_hash){
+      toast("密码不对","err"); return;
+    }
+    currentUser = publicUser(user);
+    localStorage.setItem("currentUser", JSON.stringify(currentUser));
     renderMain();
   }catch(e){
     console.error(e);
