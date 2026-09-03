@@ -224,6 +224,26 @@
   </div>
 </div>
 
+<div id="feedbackModal" class="modal-overlay hide">
+  <div class="modal-box">
+    <h3>发单成功，用了哪里不顺？</h3>
+    <p class="muted">选一项并写一句即可，直接进存档，方便改下一版。可跳过。</p>
+    <select id="fbTag">
+      <option value="还行">整体还行</option>
+      <option value="不会用">有一步不会用</option>
+      <option value="字太多">字太多 / 看不懂</option>
+      <option value="缺功能">缺一个功能</option>
+      <option value="不放心">体重或隐私不放心</option>
+      <option value="其他">其他</option>
+    </select>
+    <textarea id="fbText" placeholder="例如：截止日期不知道填哪一天"></textarea>
+    <div class="row">
+      <button onclick="submitCreateFeedback()">提交意见</button>
+      <button class="secondary" onclick="closeFeedbackModal()">跳过</button>
+    </div>
+  </div>
+</div>
+
 <div id="checkinModal" class="modal-overlay hide">
   <div class="modal-box">
     <h3>今日打卡</h3>
@@ -518,6 +538,30 @@ async function createOrder(){
   document.getElementById("deadline").value="";
   showTab("orders");
   fetchMyOrders();
+  openFeedbackModal(orderId);
+}
+
+let lastFeedbackOrderId = null;
+function openFeedbackModal(orderId){
+  lastFeedbackOrderId = orderId;
+  document.getElementById("fbTag").value = "还行";
+  document.getElementById("fbText").value = "";
+  document.getElementById("feedbackModal").classList.remove("hide");
+}
+function closeFeedbackModal(){
+  document.getElementById("feedbackModal").classList.add("hide");
+  lastFeedbackOrderId = null;
+}
+async function submitCreateFeedback(){
+  const oid = lastFeedbackOrderId;
+  if(!oid){ closeFeedbackModal(); return; }
+  const tag = document.getElementById("fbTag").value;
+  const text = document.getElementById("fbText").value.trim();
+  const content = tag + (text ? ("｜"+text) : "");
+  const err = await addOrderNote(oid, "feedback", content);
+  if(err){ toast("意见没存上："+err.message,"err"); return; }
+  toast("意见已记下，谢谢","ok");
+  closeFeedbackModal();
 }
 
 async function takeOrder(orderId){
